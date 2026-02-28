@@ -11,7 +11,7 @@ async def test_project(dut):
     dut._log.info("Start")
 
     # Set the clock period to 10 us (100 KHz)
-    clock = Clock(dut.clk, 10, unit="us")
+    clock = Clock(dut.clk, 10, units="us")
     cocotb.start_soon(clock.start())
 
     # Reset
@@ -23,18 +23,37 @@ async def test_project(dut):
     await ClockCycles(dut.clk, 10)
     dut.rst_n.value = 1
 
-    dut._log.info("Test project behavior")
+    dut._log.info("Test counter behavior")
 
-    # Set the input values you want to test
-    dut.ui_in.value = 20
-    dut.uio_in.value = 30
+    # After reset, counter should be 0
+    assert int(dut.uo_out.value) == 0, f"Expected 0 after reset, got {int(dut.uo_out.value)}"
 
-    # Wait for one clock cycle to see the output values
-    await ClockCycles(dut.clk, 1)
+    # Count up for 10 cycles and verify it increments by 1 each cycle
+    prev = int(dut.uo_out.value)
+    for _ in range(10):
+        await ClockCycles(dut.clk, 1)
+        curr = int(dut.uo_out.value)
+        expected = (prev + 1) & 0xFF
+        assert curr == expected, f"Expected {expected}, got {curr}"
+        prev = curr
 
-    # The following assersion is just an example of how to check the output values.
-    # Change it to match the actual expected output of your module:
-    assert dut.uo_out.value == 50
+    dut._log.info("Counter counts correctly for 10 cycles")
 
-    # Keep testing the module by changing the input values, waiting for
-    # one or more clock cycles, and asserting the expected output values.
+    # Test wrap-around: advance until a wrap (255 -> 0) is observed
+    # Speed up by advancing until near the top of the range
+    while int(dut.uo_out.value) < 250:
+        await ClockCycles(dut.clk, 1)
+
+    prev = int(dut.uo_out.value)
+    # Allow a few cycles to observe the wrap
+    for _ in range(20):
+        await ClockCycles(dut.clk, 1)
+        curr = int(dut.uo_out.value)
+        if curr < prev:
+            assert curr == 0, f"Expected wrap to 0, got {curr}"
+            break
+        prev = curr
+    else:
+        assert False, "Counter did not wrap within expected cycles"
+
+    dut._log.info("Counter wraps around correctly")
