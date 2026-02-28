@@ -1,9 +1,9 @@
 # Tiny Tapeout project information
 project:
-  title:       "LIF"
+  title:       "Time-Multiplexed LIF"
   author:      "Sam Wang"
   discord:     ""
-  description: "8-bit counter with integrated LIF neuron"
+  description: "Paired leaky integrate-and-fire neurons with IO-friendly wrapper"
   language:    "Verilog"
   clock_hz:    0
 
@@ -18,7 +18,7 @@ project:
   # Don't forget to also update `PROJECT_SOURCES` in test/Makefile.
   source_files:
     - "tt_um_lif.v"
-    - "lif.v"
+    - "tm_lif2.v"
 
 # The pinout of your project. Leave unused pins blank. DO NOT delete or add any pins.
 # This section is for the datasheet/website. Use descriptive names (e.g., RX, TX, MOSI, SCL, SEG_A, etc.).
@@ -41,17 +41,17 @@ pinout:
   uo[4]: "Counter output bit 4"
   uo[5]: "Counter output bit 5"
   uo[6]: "Counter output bit 6"
-  uo[7]: "Counter output bit 7 / LIF spike (MSB)"
+  uo[7]: "Counter output bit 7 (MSB)"
 
   # Bidirectional pins
-  uio[0]: ""
-  uio[1]: ""
-  uio[2]: ""
-  uio[3]: ""
-  uio[4]: ""
-  uio[5]: ""
-  uio[6]: ""
-  uio[7]: ""
+  uio[0]: "Unused"
+  uio[1]: "Unused"
+  uio[2]: "Unused"
+  uio[3]: "Unused"
+  uio[4]: "Unused"
+  uio[5]: "Unused"
+  uio[6]: "Neuron1 spike"
+  uio[7]: "Neuron0 spike"
 
 # Do not change!
 yaml_version: 6

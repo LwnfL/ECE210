@@ -9,23 +9,23 @@ You can also include images in this folder and reference them in the markdown. E
 
 ## How it works
 
-This project implements a single Leaky Integrate-and-Fire (LIF) neuron in Verilog.
+This project implements a Tiny Tapeout wrapper (`tt_um_lif`) around a time-multiplexed
+dual-neuron LIF core (`tm_lif2`).
 
-- Module: `lif` (`src/lif.v`).
-- Inputs: `current[7:0]` (input sample), `clk`, `rst_n` (active low reset).
-- Outputs: `state[7:0]` (internal membrane potential/state), `spike` (pulse when state >= threshold).
+- Top module: `tt_um_lif` (`src/tt_um_lif.v`)
+- Core module: `tm_lif2` (`src/tm_lif2.v`)
 
 Behavior summary:
 
-- next_state = current + (state >> 1) (simple leaky integration).
-- On reset (`!rst_n`) the neuron `state` is cleared and the internal `threshold` is initialized.
-- `spike` is asserted when `state >= threshold`.
-
-Source module: `lif.v` (neuron implementation).
+- `ui_in[7:0]` is routed as neuron 0 input current.
+- `uio_in[7:0]` is routed as neuron 1 input current.
+- A free-running 8-bit counter is shown on `uo_out[7:0]`.
+- The dual LIF core updates two neuron states and emits spike pulses.
+- Spike outputs are exposed on bidirectional outputs (`uio_out`), with output enable set high.
 
 ## How to test
 
-From the `test/` directory you can run the simulation. Typical flows:
+From the `test/` directory you can run the simulation.
 
 Shell (preferred if a Makefile is present):
 
@@ -37,7 +37,7 @@ make sim
 Fallback using Icarus Verilog:
 
 ```sh
-iverilog -o sim.vvp ../src/lif.v tb.v
+iverilog -o sim.vvp ../src/tt_um_lif.v ../src/tm_lif2.v tb.v
 vvp sim.vvp
 ```
 
@@ -48,14 +48,15 @@ gtkwave test/tb.fst test/tb.gtkw
 ```
 
 Key signals:
-- Input: `current[7:0]` — input sample driving the neuron.
-- Outputs: `state[7:0]` — membrane state; `spike` — neuron spike output.
+
+- `ui_in[7:0]` and `uio_in[7:0]` — two neuron input currents.
+- `uo_out[7:0]` — counter output.
+- `uio_out` — includes spike outputs from the LIF core.
+- `uio_oe` — driven high so `uio_out` actively drives outputs.
 
 Use the testbench `test/tb.v` and the provided wave settings `test/tb.gtkw` to verify behavior.
 
 ## External hardware
 
 No external hardware required. The design is purely digital and simulated in software.
-
-If you prefer, I can also update `info.yaml` (project title/top_module/source_files) and `test/Makefile` to reflect that this is a single-`lif` project.
 

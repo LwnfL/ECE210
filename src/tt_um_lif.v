@@ -26,27 +26,22 @@ module tt_um_lif (
   wire       lif_spike2;
 
  
-  lif lif1 (
-    .current(ui_in),
-    .clk(clk),
-    .rst_n(rst_n),
-    .state(lif_state1),
-    .spike(lif_spike1)
-  );
-
-  lif lif2 (
-    .current(uio_in),          
-    .clk(clk),
-    .rst_n(rst_n),
-    .state(lif_state2),
-    .spike(lif_spike2)
+  tm_lif2 tm0 (
+      .current0(ui_in),  // use ui_in as input current for neuron 0
+      .current1(uio_in), // use uio_in as input current for neuron 1
+      .clk(clk),
+      .rst_n(rst_n),
+      .state0(lif_state1),
+      .spike0(lif_spike1),
+      .state1(lif_state2),
+      .spike1(lif_spike2)
   );
 
   // keep counter on uo_out, and expose spikes on uio_out
   assign uo_out  = counter;
 
   assign uio_out = { lif_spike2, 6'b0, lif_spike1 }; // example mapping
-  assign uio_oe  = 8'b0000_0000; // all uio pins as inputs? (if you want to output uio_out, set oe bits to 1)
+  assign uio_oe  = 8'hFF; 
 
   // If you actually want uio_out to be driven out, you MUST enable it:
   // assign uio_oe  = 8'b1111_1111;
