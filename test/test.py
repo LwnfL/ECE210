@@ -7,20 +7,19 @@ from cocotb.triggers import ClockCycles, Timer
 
 
 async def tick(dut, n=1):
-    """Advance n clock cycles and let NBA settle before sampling."""
+    """Advance n clock cycles and let NBA / GL delays settle before sampling."""
     await ClockCycles(dut.clk, n)
-    await Timer(100, unit="ns")
+    await Timer(100, units="ns")
 
 
 @cocotb.test()
 async def test_project(dut):
     dut._log.info("Start")
 
-    # Set the clock period to 10 us (100 KHz)
-    clock = Clock(dut.clk, 10, unit="us")
+    clock = Clock(dut.clk, 10, units="us")
     cocotb.start_soon(clock.start())
 
-    # Reset
+    # ---- Reset ----
     dut._log.info("Reset")
     dut.ena.value = 1
     dut.ui_in.value = 0
@@ -29,58 +28,82 @@ async def test_project(dut):
     await tick(dut, 10)
     dut.rst_n.value = 1
 
-    dut._log.info("Test counter behavior")
+    dut._log.info("Check state after reset")
 
-    # After reset, counter should be 0
+    # After reset, neuron 0 state (uo_out[5:0]) and spikes (uo_out[7:6]) should be 0
     assert int(dut.uo_out.value) == 0, f"Expected 0 after reset, got {int(dut.uo_out.value)}"
 
-    # Count up for 10 cycles and verify it increments by 1 each cycle
-    prev = int(dut.uo_out.value)
-    for _ in range(10):
-        await tick(dut)
-        curr = int(dut.uo_out.value)
-        expected = (prev + 1) & 0xFF
-        assert curr == expected, f"Expected {expected}, got {curr}"
-        prev = curr
+    # ---- Test neuron 0 integration ----
+    # Feed a moderate current; neuron 0 updates every other clock (sel toggles).
+    # With current=50 and threshold=200, neuron 0 should integrate up and
+    # eventually spike within ~10 update cycles.
+    dut._log.info("Test neuron 0 integration and spike")
+    dut.ui_in.value = 50
+    dut.uio_in.value = 0
 
-    dut._log.info("Counter counts correctly for 10 cycles")
+    saw_spike0 = False
+    prev_state = 0
+    state_increased = False
 
-    # Test wrap-around: advance until a wrap (255 -> 0) is observed
-    # Speed up by advancing until near the top of the range
-    while int(dut.uo_out.value) < 250:
+    for i in range(30):
         await tick(dut)
+        uo = int(dut.uo_out.value)
+        state = uo & 0x3F          # uo_out[5:0]
+        spike0 = (uo >> 6) & 1     # uo_out[6]
 
-    prev = int(dut.uo_out.value)
-    # Allow a few cycles to observe the wrap
-    for _ in range(20):
-        await tick(dut)
-        curr = int(dut.uo_out.value)
-        if curr < prev:
-            assert curr == 0, f"Expected wrap to 0, got {curr}"
+        # Check that membrane potential is increasing (at least once)
+        if state > prev_state:
+            state_increased = True
+        prev_state = state
+
+        if spike0:
+            saw_spike0 = True
+            dut._log.info(f"Neuron 0 spiked at cycle {i+1}, state reset to {state}")
             break
-        prev = curr
-    else:
-        assert False, "Counter did not wrap within expected cycles"
 
-    dut._log.info("Counter wraps around correctly")
-    dut._log.info("Test time-mux spikes on uio_out[0] and uio_out[7]")
+    assert state_increased, "Neuron 0 state never increased — integration not working"
+    assert saw_spike0, "Neuron 0 never spiked within 30 cycles"
 
+    dut._log.info("Neuron 0 integration and spike OK")
+
+    # ---- Test neuron 1 spike ----
+    # Drive a large current so neuron 1 spikes quickly.
+    dut._log.info("Test neuron 1 spike")
+    dut.ui_in.value = 0
+    dut.uio_in.value = 250
+
+    saw_spike1 = False
+    for i in range(30):
+        await tick(dut)
+        uo = int(dut.uo_out.value)
+        spike1 = (uo >> 7) & 1     # uo_out[7]
+        if spike1:
+            saw_spike1 = True
+            dut._log.info(f"Neuron 1 spiked at cycle {i+1}")
+            break
+
+    assert saw_spike1, "Neuron 1 never spiked within 30 cycles"
+
+    dut._log.info("Neuron 1 spike OK")
+
+    # ---- Test both neurons simultaneously ----
+    dut._log.info("Test both neurons with simultaneous input")
     dut.ui_in.value = 250
     dut.uio_in.value = 250
-    saw_spike0 = False  # uio_out[0]
-    saw_spike1 = False  # uio_out[7]
-    for _ in range(40):
+    saw_spike0 = False
+    saw_spike1 = False
+    for i in range(30):
         await tick(dut)
-        uio = int(dut.uio_out.value)
-        if (uio & 0x01) != 0:
+        uo = int(dut.uo_out.value)
+        if (uo >> 6) & 1:
             saw_spike0 = True
-        if (uio & 0x80) != 0:
+        if (uo >> 7) & 1:
             saw_spike1 = True
         if saw_spike0 and saw_spike1:
             break
 
-    assert saw_spike0, "No neuron0 spike on uio_out[0]"
-    assert saw_spike1, "No neuron1 spike on uio_out[7]"
+    assert saw_spike0, "No neuron 0 spike during dual-input test"
+    assert saw_spike1, "No neuron 1 spike during dual-input test"
 
-    dut._log.info("Observed spikes from both time-mux neurons")
+    dut._log.info("Both neurons spike correctly — time-mux LIF verified")
 

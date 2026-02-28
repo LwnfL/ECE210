@@ -9,19 +9,23 @@ You can also include images in this folder and reference them in the markdown. E
 
 ## How it works
 
-This project implements a Tiny Tapeout wrapper (`tt_um_lif`) around a time-multiplexed
-dual-neuron LIF core (`tm_lif2`).
 
-- Top module: `tt_um_lif` (`src/tt_um_lif.v`)
-- Core module: `tm_lif2` (`src/tm_lif2.v`)
+Both neurons take turns with the same update logic.
 
-Behavior summary:
+- **Even ticks (`sel = 0`):** neuron 0 state and spike registers are updated.
+- **Odd ticks (`sel = 1`):** neuron 1 state and spike registers are updated.
 
-- `ui_in[7:0]` is routed as neuron 0 input current.
-- `uio_in[7:0]` is routed as neuron 1 input current.
-- A free-running 8-bit counter is shown on `uo_out[7:0]`.
-- The dual LIF core updates two neuron states and emits spike pulses.
-- Spike outputs are exposed on bidirectional outputs (`uio_out`), with output enable set high.
+So only 1 neuron's state gets written each clock and the neurons updates at half the clock freq.
+
+1. **Leak:** `s = max(state - 1, 0)`
+2. **Integrate:** `s = s + current`
+3. **Fire:** if `s >= 200` then `spike = 1, state = 0`, else `spike = 0, state = s`
+
+`ui_in[7:0]` → Neuron 0 input current
+`uio_in[7:0]` → Neuron 1 input current (all bidirectional pins configured as inputs)
+`uo_out[5:0]` → Neuron 0 membrane state (lower 6 bits)
+`uo_out[6]` → Neuron 0 spike
+`uo_out[7]` → Neuron 1 spike
 
 ## How to test
 
@@ -49,10 +53,11 @@ gtkwave test/tb.fst test/tb.gtkw
 
 Key signals:
 
-- `ui_in[7:0]` and `uio_in[7:0]` — two neuron input currents.
-- `uo_out[7:0]` — counter output.
-- `uio_out` — includes spike outputs from the LIF core.
-- `uio_oe` — driven high so `uio_out` actively drives outputs.
+- `ui_in[7:0]` — neuron 0 input current.
+- `uio_in[7:0]` — neuron 1 input current.
+- `uo_out[5:0]` — neuron 0 membrane state (6 bits).
+- `uo_out[6]` — neuron 0 spike.
+- `uo_out[7]` — neuron 1 spike.
 
 Use the testbench `test/tb.v` and the provided wave settings `test/tb.gtkw` to verify behavior.
 
