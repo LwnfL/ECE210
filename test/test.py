@@ -9,7 +9,7 @@ from cocotb.triggers import ClockCycles, Timer
 async def tick(dut, n=1):
     """Advance n clock cycles and let NBA settle before sampling."""
     await ClockCycles(dut.clk, n)
-    await Timer(1, units="ns")
+    await Timer(100, unit="ns")
 
 
 @cocotb.test()
@@ -17,7 +17,7 @@ async def test_project(dut):
     dut._log.info("Start")
 
     # Set the clock period to 10 us (100 KHz)
-    clock = Clock(dut.clk, 10, units="us")
+    clock = Clock(dut.clk, 10, unit="us")
     cocotb.start_soon(clock.start())
 
     # Reset
